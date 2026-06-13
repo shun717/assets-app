@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>家計シミュレーション（フロー & ストック）</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto,
+          'ヒラギノ角ゴ ProN', 'Hiragino Kaku Gothic ProN', 'メイリオ', Meiryo,
+          sans-serif;
+        max-width: 1200px;
+        margin: 20px auto;
+        padding: 10px;
+      }
+      h2 {
+        margin-top: 0;
+      }
+      .section {
+        border: 1px solid #eee;
+        padding: 12px;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        background: #fafafa;
+      }
+      label {
+        display: inline-block;
+        width: 220px;
+      }
+      input[type='number'],
+      input[type='text'] {
+        width: 150px;
+        padding: 4px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      canvas {
+        max-width: 1100px;
+        background: white;
+        border-radius: 6px;
+        padding: 8px;
+      }
+      .small {
+        font-size: 0.9rem;
+        color: #666;
+      }
+      .controls {
+        margin-top: 8px;
+      }
+      button {
+        padding: 6px 10px;
+        margin-left: 6px;
+      }
+      .car-list {
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>家計シミュレーション（2026開始）</h2>
+
+    <!-- 収入エリア -->
+    <div class="section">
+      <h3>○ 収入エリア</h3>
+      <div class="row">
+        <div>
+          <label>私の初年度年収（円）</label
+          ><input
+            id="husband_base"
+            type="number"
+            value="6200000"
+            onchange="runSimulation()"
+          />
+        </div>
+        <div>
+          <label>私の年増加率（％）</label
+          ><input
+            id="husband_growth"
+            type="number"
+            value="2.5"
+            step="0.01"
+            onchange="runSimulation()"
+          />
+          <div class="small">例: 1.61 => 1.61%/年</div>
+        </div>
+        <div>
+          <label>旦那手取り係数</label
+          ><input
+            id="husband_takehome"
+            type="number"
+            value="0.8"
+            step="0.01"
+            onchange="runSimulation()"
+          />
+          <div class="small">デフォルト 0.8 (= 手取り80%)</div>
+        </div>
+        <div>
+          <label>育休手当（年・2027年に加算）</label
+          ><input
+            id="ikukyuh"
+            type="number"
+            value="1500000"
+            onchange="runSimulation()"
+          />
+        </div>
+
+        <div style="width: 100%"></div>
+
+        <div>
+          <label>妻の収入（円・固定）</label
+          ><input
+            id="wife_income"
+            type="number"
+            value="1030000"
+            onchange="runSimulation()"
+          />
+        </div>
+        <div>
+          <label>妻の収入開始年</label
+          ><input
+            id="wife_start"
+            type="number"
+            value="2031"
+            onchange="runSimulation()"
+          />
+        </div>
+
+        <div>
+          <label>児童手当（編集不可）</label
+          ><input
+            id="child_allow_label"
+            type="text"
+            value="0-3歳:15,000円/月, 4-18歳:10,000円/月"
+            disabled
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- 生活費エリア -->
+    <div class="section">
+      <h3>○ 生活費エリア</h3>
+      <div class="row">
+        <div>
+          <label>最低生活費（夫婦・月）</label
+          ><input
+            id="min_living"
+            type="number"
+            value="240000"
+            onchange="runSimulation()"
+          />
+        </div>
+        <div>
+          <label>特別費（月平均）</label>
+          <input
+            id="special_cost"
+            type="number"
+            value="20000"
+            onchange="runSimulation()"
+          />
+          <div class="small">家電・修繕など均した金額</div>
+        </div>
+        <div>
+          <label>子供1人当たり生活費（初期・月）</label
+          ><input
+            id="child_living_base"
+            type="number"
+            value="40000"
+            onchange="runSimulation()"
+          />
+        </div>
+        <div>
+          <label>子供生活費 年増加率（％）</label>
+          <input
+            id="child_living_growth"
+            type="number"
+            value="2"
+            step="0.1"
+            onchange="runSimulation()"
+          />
+          <div class="small">例: 2 => 年2%増加</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ゆとり費エリア -->
+    <div class="section">
+      <h3>○ ゆとり費エリア</h3>
+      <div class="row">
+        <div>
+          <label>旦那小遣い（月）</label
+          ><input
+            id="husband_allow"
+            type="number"
+            value="30000"
+            onchange="runSimulation()"
+          />
+        </div>
+        <div>
+          <label>妻小遣い（月）</label
+          ><input
+            id="wife_allow"
+            type="number"
+            value="30000"
+            onchange="runSimulation()"
+          />
+        </div>
+        <div>
+          <label>外食費（月）</label
+          ><input
+            id="dining"
+            type="number"
+            value="10000"
+            onchange="runSimulation()"
+          />
+        </div>
+        <div>
+          <label>レジャー費（月）</label
+          ><input
+            id="leisure"
+            type="number"
+            value="10000"
+            onchange="runSimulation()"
+          />
+        </div>
+        <div>
+          <label>子供1人当たりゆとり費（月）</label
+          ><input
+            id="child_yutori"
+            type="number"
+            value="10000"
+            onchange="runSimulation()"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- 資産形成エリア -->
+    <div class="section">
+      <h3>○ 資産形成エリア</h3>
+      <div class="row">
+        <div>
+          <label>NISA 積立（月）</label
+          ><input
+            id="nisa_month"
+            type="number"
+            value="30000"
+            onchange="runSimulation()"
+          />
+        </div>
+        <div>
+          <label>NISA 年利（％）</label
+          ><input
+            id="nisa_rate"
+            type="number"
+            value="7"
+            step="0.1"
+            onchange="runSimulation()"
+          />
+        </div>
+
+        <div style="width: 100%"></div>
+
+        <div>
+          <label>教育資金 子1 初期一括（円）</label
+          ><input
+            id="edu1_initial"
+            type="number"
+            value="1100000"
+            onchange="runSimulation()"
+          />
+        </div>
+        <div>
+          <label>教育資金 子2/3 初期一括（円）</label
+          ><input
+            id="edu23_initial"
+            type="number"
+            value="1000000"
+            onchange="runSimulation()"
+          />
+        </div>
+        <div>
+          <label>教育積立（子1人あたり・年）</label
+          ><input
+            id="edu_yearly"
+            type="number"
+            value="100000"
+            onchange="runSimulation()"
+          />
+        </div>
+        <div>
+          <label>教育年利（％）</label
+          ><input
+            id="edu_rate"
+            type="number"
+            value="4"
+            step="0.1"
+            onchange="runSimulation()"
+          />
+        </div>
+        <div>
+          <label>大学費用（1人 total）</label>
+          <input
+            id="college_cost"
+            type="number"
+            value="4000000"
+            onchange="runSimulation()"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- その他: 車イベント -->
+    <div class="section">
+      <h3>○ その他（車購入イベント）</h3>
+      <div class="row">
+        <div>
+          <label>年</label><input id="car_year" type="number" value="2026" />
+          <label style="margin-left: 8px">金額（円）</label
+          ><input id="car_amount" type="number" value="4000000" />
+          <button onclick="addCarEvent()">追加</button>
+          <button onclick="resetCarEvents()">初期に戻す</button>
+        </div>
+      </div>
+      <div class="car-list" id="carEvents"></div>
+    </div>
+
+    <div style="margin-top: 8px">
+      <button onclick="runSimulation()">再計算</button>
+    </div>
+
+    <h3>フロー（年単位）</h3>
+    <canvas id="flowChart" height="240"></canvas>
+
+    <h3>ストック（資産推移）</h3>
+    <canvas id="stockChart" height="260"></canvas>
+
+    <script>
+      /* ---------- 初期データ / 設定 ---------- */
+      const startYear = 2026
+      const endYear = 2055
+
+      // 子の出生年（固定で要件どおり）
+      const birthYears = [2026, 2027, 2029]
+
+      // 初期ストック
+      const initialSavings = 11500000 // 円
+      const initialNisa = 3300000 // 円
+
+      // 初期車イベント（要件どおり）
+      let carEvents = [
+        { year: 2026, amount: 4000000 },
+        { year: 2036, amount: 4000000 },
+        { year: 2031, amount: 2000000 },
+        { year: 2041, amount: 2000000 },
+      ]
+
+      function renderCarEvents() {
+        const el = document.getElementById('carEvents')
+        el.innerHTML = ''
+        carEvents
+          .sort((a, b) => a.year - b.year)
+          .forEach((c, i) => {
+            const div = document.createElement('div')
+            div.textContent = `${i + 1}. ${
+              c.year
+            } 年 - ￥${c.amount.toLocaleString()}`
+            el.appendChild(div)
+          })
+      }
+      renderCarEvents()
+
+      function addCarEvent() {
+        const y = Number(document.getElementById('car_year').value)
+        const a = Number(document.getElementById('car_amount').value)
+        if (!isNaN(y) && !isNaN(a) && y > 0) {
+          carEvents.push({ year: y, amount: a })
+          renderCarEvents()
+          runSimulation()
+        }
+      }
+      function resetCarEvents() {
+        carEvents = [
+          { year: 2026, amount: 4000000 },
+          { year: 2036, amount: 4000000 },
+          { year: 2031, amount: 2000000 },
+          { year: 2041, amount: 2000000 },
+        ]
+        renderCarEvents()
+        runSimulation()
+      }
+
+      function childAllowanceForYear(year) {
+        // 0-3歳: 15,000/月, 4-18歳: 10,000/月
+        let total = 0
+        birthYears.forEach((by) => {
+          const age = year - by
+          if (age >= 0 && age <= 3) total += 15000
+          else if (age >= 4 && age <= 18) total += 10000
+        })
+        return total * 12 // 年間
+      }
+
+      /* ---------- 計算 & 描画 ---------- */
+      let flowChartObj = null
+      let stockChartObj = null
+
+      function runSimulation() {
+        // --- 入力取得 ---
+        const husbandBase =
+          Number(document.getElementById('husband_base').value) || 6200000
+        const husbandGrowthPct =
+          Number(document.getElementById('husband_growth').value) || 1.61 // percent value
+        const husbandGrowth = husbandGrowthPct / 100.0
+        const husbandTakehomeCoef =
+          Number(document.getElementById('husband_takehome').value) || 0.8
+        const ikukyuh =
+          Number(document.getElementById('ikukyuh').value) || 1500000
+
+        const wifeIncome =
+          Number(document.getElementById('wife_income').value) || 1030000
+        const wifeStart =
+          Number(document.getElementById('wife_start').value) || 2031
+
+        const minLiving =
+          Number(document.getElementById('min_living').value) || 240000
+        const specialCost =
+          Number(document.getElementById('special_cost').value) || 0
+        const childLivingBase =
+          Number(document.getElementById('child_living_base').value) || 50000
+        const childLivingGrowthPct =
+          Number(document.getElementById('child_living_growth').value) || 2
+        const childLivingGrowth = childLivingGrowthPct / 100.0
+
+        const husbandAllow =
+          Number(document.getElementById('husband_allow').value) || 30000
+        const wifeAllow =
+          Number(document.getElementById('wife_allow').value) || 30000
+        const dining = Number(document.getElementById('dining').value) || 20000
+        const leisure =
+          Number(document.getElementById('leisure').value) || 40000
+        const childYutori =
+          Number(document.getElementById('child_yutori').value) || 0
+
+        const nisaMonth =
+          Number(document.getElementById('nisa_month').value) || 30000
+        const nisaRatePct =
+          Number(document.getElementById('nisa_rate').value) || 7
+        const nisaRate = nisaRatePct / 100.0
+
+        const edu1Initial =
+          Number(document.getElementById('edu1_initial').value) || 1100000
+        const edu23Initial =
+          Number(document.getElementById('edu23_initial').value) || 1000000
+        const eduYearly =
+          Number(document.getElementById('edu_yearly').value) || 100000
+        const eduRatePct =
+          Number(document.getElementById('edu_rate').value) || 4
+        const eduRate = eduRatePct / 100.0
+        const collegeCost =
+          Number(document.getElementById('college_cost').value) || 0
+
+        // --- 初期ストック ---
+        let savings = initialSavings
+        let nisa = initialNisa
+        let eduFunds = [0, 0, 0] // edu1, edu2, edu3
+
+        // 年ごとの配列
+        const years = []
+        const annualIncome = []
+        const annualExpenses = []
+        const annualSurplus = []
+
+        const savingsSeries = []
+        const nisaSeries = []
+        const eduSeries = []
+        const defenseLine = []
+
+        // 計算 - 年ごと
+        // husband's income is modelled as: start at husbandBase in startYear, then compounded by husbandGrowth each year
+        let husbandGrossPrev = husbandBase
+
+        for (let y = startYear; y <= endYear; y++) {
+          years.push(y)
+
+          // husband's gross for this year
+          let husbandGross =
+            y === startYear
+              ? husbandBase
+              : husbandGrossPrev * (1 + husbandGrowth)
+          husbandGrossPrev = husbandGross
+
+          // add育休手当 in 2027 to husband's gross (as per earlier logic)
+          let husbandGrossWithIkukyu = husbandGross + (y === 2027 ? ikukyuh : 0)
+
+          // husband's take-home
+          const husbandTakehome = husbandGrossWithIkukyu * husbandTakehomeCoef
+
+          // wife's income if started (assume wifeIncome is take-home already)
+          const wifeTakehome = y >= wifeStart ? wifeIncome : 0
+
+          const income = husbandTakehome + wifeTakehome
+
+          // child count
+          let childCount = 0
+          birthYears.forEach((by) => {
+            if (y >= by) childCount++
+          })
+
+          // child-dependent living cost
+          const yearsFromStart = y - startYear
+          const childLivingMonthly =
+            childLivingBase * Math.pow(1 + childLivingGrowth, yearsFromStart)
+          const annualChildLiving = childLivingMonthly * 12 * childCount
+
+          // min living annual
+          const annualMinLiving = minLiving * 12 + specialCost * 12
+
+          // yutori monthly and annual
+          const monthlyYutori =
+            husbandAllow +
+            wifeAllow +
+            dining +
+            leisure +
+            childYutori * childCount
+          const annualYutori = monthlyYutori * 12
+
+          // child allowance (annual)
+          const childAllowance = childAllowanceForYear(y)
+
+          // NISA annual contribution
+          const annualNisa = nisaMonth * 12
+
+          // car cost this year
+          let carCost = 0
+          carEvents.forEach((c) => {
+            if (c.year === y) carCost += c.amount
+          })
+
+          // education deposits this year (cash out from household flow)
+          let annualEduContribution = 0
+
+          // education initial deposits at birth years
+          if (y === birthYears[0]) {
+            eduFunds[0] += edu1Initial
+            annualEduContribution += edu1Initial
+          }
+          if (y === birthYears[1]) {
+            eduFunds[1] += edu23Initial
+            annualEduContribution += edu23Initial
+          }
+          if (y === birthYears[2]) {
+            eduFunds[2] += edu23Initial
+            annualEduContribution += edu23Initial
+          }
+
+          let universityPhase = false
+
+          let collegeWithdraws = [0, 0, 0]
+
+          birthYears.forEach((birth, i) => {
+            if (!birth) return
+
+            const age = y - birth
+
+            if (age >= 19 && age <= 22) {
+              collegeWithdraws[i] = collegeCost / 4
+            }
+          })
+
+          // education yearly deposits (assuming every year once child exists we deposit eduYearly)
+          if (y >= birthYears[0] && collegeWithdraws[0] == 0) {
+            eduFunds[0] += eduYearly
+            annualEduContribution += eduYearly
+          }
+          if (y >= birthYears[1] && collegeWithdraws[1] == 0) {
+            eduFunds[1] += eduYearly
+            annualEduContribution += eduYearly
+          }
+          if (y >= birthYears[2] && collegeWithdraws[2] == 0) {
+            eduFunds[2] += eduYearly
+            annualEduContribution += eduYearly
+          }
+
+          // education funds growth
+          if (collegeWithdraws[0] == 0) eduFunds[0] *= 1 + eduRate
+          if (collegeWithdraws[1] == 0) eduFunds[1] *= 1 + eduRate
+          if (collegeWithdraws[2] == 0) eduFunds[2] *= 1 + eduRate
+
+          // 教育資金利用
+          eduFunds[0] -= collegeWithdraws[0]
+          eduFunds[1] -= collegeWithdraws[1]
+          eduFunds[2] -= collegeWithdraws[2]
+
+          // NISA growth: add annual contribution then apply rate
+          nisa += annualNisa
+          nisa *= 1 + nisaRate
+
+          // annual expenses: living + child living + yutori + NISA + education contributions + carCost - childAllowance
+          const annualExpensesVal =
+            annualMinLiving +
+            annualChildLiving +
+            annualYutori +
+            annualNisa +
+            annualEduContribution +
+            carCost -
+            childAllowance
+
+          const surplus = income - annualExpensesVal
+
+          // update savings
+          savings += surplus
+
+          // push arrays (in 10k単位 -> 万円 表示)
+          annualIncome.push(Math.round(income / 10000))
+          annualExpenses.push(Math.round(annualExpensesVal / 10000))
+          annualSurplus.push(Math.round(surplus / 10000))
+
+          savingsSeries.push(Math.round(savings / 10000))
+          nisaSeries.push(Math.round(nisa / 10000))
+          eduSeries.push(
+            Math.round((eduFunds[0] + eduFunds[1] + eduFunds[2]) / 10000)
+          )
+          defenseLine.push(400) // 400万円ライン
+        }
+
+        drawFlowChart(years, annualIncome, annualExpenses, annualSurplus)
+        drawStockChart(years, savingsSeries, nisaSeries, eduSeries, defenseLine)
+      }
+
+      /* ---------- Chart 描画 ---------- */
+      function drawFlowChart(labels, income, expenses, surplus) {
+        const ctx = document.getElementById('flowChart').getContext('2d')
+        if (flowChartObj) flowChartObj.destroy()
+        flowChartObj = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: '年収（万円）',
+                data: income,
+                backgroundColor: 'rgba(54,162,235,0.6)',
+              },
+              {
+                label: '年間支出（万円）',
+                data: expenses,
+                backgroundColor: 'rgba(255,99,132,0.6)',
+              },
+              {
+                type: 'line',
+                label: '余剰（万円）',
+                data: surplus,
+                tension: 0.2,
+                borderColor: 'black',
+                borderWidth: 2,
+                fill: false,
+                pointRadius: 3,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { position: 'top' } },
+            scales: { y: { beginAtZero: false } },
+          },
+        })
+      }
+
+      function drawStockChart(labels, savings, nisa, edu, defense) {
+        const ctx = document.getElementById('stockChart').getContext('2d')
+        if (stockChartObj) stockChartObj.destroy()
+        stockChartObj = new Chart(ctx, {
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                type: 'bar',
+                label: '貯金（万円）',
+                data: savings,
+                backgroundColor: 'rgba(75,192,192,0.7)',
+              },
+              {
+                type: 'bar',
+                label: 'NISA（万円）',
+                data: nisa,
+                backgroundColor: 'rgba(153,102,255,0.7)',
+              },
+              {
+                type: 'bar',
+                label: '教育資金合計（万円）',
+                data: edu,
+                backgroundColor: 'rgba(255,205,86,0.8)',
+              },
+              {
+                type: 'line',
+                label: '生活防衛費ライン（400万円）',
+                data: defense,
+                borderDash: [6, 4],
+                borderColor: '#444',
+                borderWidth: 1.5,
+                fill: false,
+                tension: 0.0,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { position: 'top' } },
+            scales: { y: { beginAtZero: true } },
+          },
+        })
+      }
+
+      /* 初回実行 */
+      runSimulation()
+    </script>
+  </body>
+</html>
